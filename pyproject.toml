@@ -4,24 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pendragondi-cloud-audit"
-version = "0.2.8"
-description = "Read-only, metadata-only cloud storage audit for stale and duplicate objects (AWS S3, GCS, Azure Blob)."
+version = "0.2.9"
+description = "PendragonDI Cloud Audit – local tool to detect stale, redundant, or inefficient storage in cloud buckets."
 readme = "README.md"
-requires-python = ">=3.8"
-authors = [
-    { name = "jinpendragon", email = "pendragondi@pendragondi.dev" }
-]
-license = { text = "MIT" }
-dependencies = ["typer>=0.9.0"]
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "jinpendragon", email = "pendragondi@pendragondi.dev"}]
+dependencies = ["typer"]
 
 [project.optional-dependencies]
-aws = ["boto3>=1.28.0", "botocore>=1.31.0"]
-gcs = ["google-cloud-storage>=2.10.0"]
-azure = ["azure-storage-blob>=12.16.0"]
-all = ["boto3>=1.28.0", "botocore>=1.31.0", "google-cloud-storage>=2.10.0", "azure-storage-blob>=12.16.0"]
+aws = ["boto3"]
+gcs = ["google-cloud-storage"]
+azure = ["azure-storage-blob"]
+all = ["boto3", "google-cloud-storage", "azure-storage-blob"]
 
 [project.scripts]
 pendragondi-cloud-audit = "pendragondi_cloud_audit.cli:app"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+packages = ["pendragondi_cloud_audit"]
