@@ -1,7 +1,8 @@
 import typer
 from typing import Optional
-from auditor_core import scan_bucket
-from reporter import save_report
+from pendragondi_cloud_audit.auditor_core import scan_bucket
+from pendragondi_cloud_audit.reporter import save_report
+
 
 app = typer.Typer(help="PendragonDI Cloud Audit - read-only, metadata-only scans for stale/duplicate objects.")
 
