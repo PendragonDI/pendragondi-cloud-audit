@@ -1,25 +1,30 @@
 import typer
-from typing import Optional
 from pendragondi_cloud_audit.auditor_core import scan_bucket
-from pendragondi_cloud_audit.reporter import save_report
+from pendragondi_cloud_audit.reporter import export_html, export_json, export_csv
+from typing import Optional
+from pathlib import Path
 
-
-app = typer.Typer(help="PendragonDI Cloud Audit - read-only, metadata-only scans for stale/duplicate objects.")
+app = typer.Typer()
 
 @app.command()
 def scan(
-    provider: str = typer.Argument(..., help="aws | gcs | azure"),
-    bucket: str = typer.Argument(..., help="Bucket/Container name or URL (Azure supports container URL)."),
-    days_stale: int = typer.Option(90, "--days-stale", "-d", help="Days since last modified to label as stale."),
-    output: str = typer.Option("report.html", "--output", "-o", help="Output file (.html or .csv)."),
-    limit: Optional[int] = typer.Option(None, "--limit", help="Optional max number of objects to scan (sampling/testing).")
+    provider: str = typer.Argument(...),
+    bucket: str = typer.Argument(...),
+    days_stale: int = typer.Option(90, "--days-stale"),
+    output: str = typer.Option("report.html", "--output", "-o"),
+    format: str = typer.Option("html", "--format", "-f"),
+    limit: Optional[int] = typer.Option(None, "--limit")
 ):
-    allowed = {"aws", "gcs", "azure"}
-    if provider not in allowed:
-        raise typer.BadParameter(f"provider must be one of: {', '.join(sorted(allowed))}")
-    metadata = scan_bucket(provider, bucket, days_stale, limit=limit)
-    save_report(metadata, output)
-    typer.echo(f"Report saved to {output}")
+    data = scan_bucket(provider_name=provider, bucket=bucket, days_stale=days_stale, limit=limit)
+
+    if format == "json":
+        export_json(data, output)
+    elif format == "csv":
+        export_csv(data, output)
+    else:
+        export_html(data, output)
+
+    typer.echo(f"Report saved to {Path(output).resolve()}")
 
 if __name__ == "__main__":
     app()
