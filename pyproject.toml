@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pendragondi-cloud-audit"
+version = "0.2.3"
+description = "Read-only, metadata-only cloud storage audit for stale and duplicate objects (AWS S3, GCS, Azure Blob)."
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    { name = "jinpendragon", email = "pendragondi@pendragondi.dev" }
+]
+license = { text = "MIT" }
+dependencies = ["typer>=0.9.0"]
+
+[project.optional-dependencies]
+aws = ["boto3>=1.28.0", "botocore>=1.31.0"]
+gcs = ["google-cloud-storage>=2.10.0"]
+azure = ["azure-storage-blob>=12.16.0"]
+all = ["boto3>=1.28.0", "botocore>=1.31.0", "google-cloud-storage>=2.10.0", "azure-storage-blob>=12.16.0"]
+
+[project.scripts]
+pendragondi-cloud-audit = "cli:app"
