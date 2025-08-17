@@ -21,4 +21,4 @@ azure = ["azure-storage-blob>=12.16.0"]
 all = ["boto3>=1.28.0", "botocore>=1.31.0", "google-cloud-storage>=2.10.0", "azure-storage-blob>=12.16.0"]
 
 [project.scripts]
-pendragondi-cloud-audit = "cli:app"
+pendragondi-cloud-audit = "pendragondi_cloud_audit.cli:app"
