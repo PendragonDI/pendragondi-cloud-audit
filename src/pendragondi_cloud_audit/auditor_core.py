@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional
-from providers import get_provider
+from pendragondi_cloud_audit.providers import get_provider
 
 def scan_bucket(provider_name: str, bucket: str, days_stale: int, limit: Optional[int] = None) -> List[Dict]:
     # Lazy import and provider guard
