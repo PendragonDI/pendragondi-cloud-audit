@@ -22,8 +22,15 @@ def scan(
     output: str = typer.Option("report.html", "--output", "-o", help="Output file path"),
     format: str = typer.Option("html", "--format", "-f", help="Output format: html, csv, json"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Max number of objects to scan"),
+    public: bool = typer.Option(False, "--public", help="Use known public keys for restricted buckets")
 ):
-    data = scan_bucket(provider_name=provider, bucket=bucket, days_stale=days_stale, limit=limit)
+    data = scan_bucket(
+        provider_name=provider,
+        bucket=bucket,
+        days_stale=days_stale,
+        limit=limit,
+        public=public
+    )
 
     if format == "json":
         export_json(data, output)
@@ -33,6 +40,7 @@ def scan(
         export_html(data, output)
 
     typer.echo(f"Report saved to {Path(output).resolve()}")
+
 
 if __name__ == "__main__":
     app()
