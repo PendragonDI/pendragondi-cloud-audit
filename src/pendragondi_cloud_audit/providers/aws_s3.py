@@ -2,6 +2,7 @@ from typing import Optional
 try:
     import boto3
     from botocore.config import Config
+    from botocore import UNSIGNED
 except ImportError:
     raise ImportError("AWS support requires boto3 and botocore. Install with: pip install pendragondi-cloud-audit[aws]")
 
@@ -17,7 +18,22 @@ def _file_hash(obj):
     ).hexdigest()
 
 def scan(bucket: str, days_stale: int, limit: Optional[int] = None):
-    s3 = boto3.client("s3", config=Config(retries={"max_attempts": 10, "mode": "adaptive"}))
+    # List of known public buckets that don't need credentials
+    PUBLIC_BUCKETS = [
+        'commoncrawl', 'nyc-tlc', 'landsat-pds', 'sentinel-s2-l1c',
+        'opendata', 'registry.opendata.aws', 'aws-publicdatasets'
+    ]
+    
+    # Use unsigned requests for public buckets
+    if bucket in PUBLIC_BUCKETS or bucket.startswith('aws-'):
+        config = Config(
+            signature_version=UNSIGNED,
+            retries={"max_attempts": 10, "mode": "adaptive"}
+        )
+    else:
+        config = Config(retries={"max_attempts": 10, "mode": "adaptive"})
+    
+    s3 = boto3.client("s3", config=config, region_name='us-east-1')
     paginator = s3.get_paginator('list_objects_v2')
     stale_cutoff = datetime.now(timezone.utc) - timedelta(days=days_stale)
     files = []
