@@ -6,14 +6,12 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from botocore import UNSIGNED
 
-
-def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool = False) -> List[Dict]:
+def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool = False, verbose: bool = False) -> List[Dict]:
     now = datetime.now(timezone.utc)
     stale_cutoff = now.replace(microsecond=0) - timedelta(days=days_stale)
     files = []
     hash_map = defaultdict(list)
 
-    # Known object keys for public fallback scan mode
     known_keys = {
         "commoncrawl": [
             "crawl-data/CC-MAIN-2024-10/index.html",
@@ -28,7 +26,6 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
             "c1/L8/001/002/LC08_L1TP_001002_20200101_20200101_01_RT/LC08_L1TP_001002_20200101_20200101_01_RT_MTL.txt"
         ]
     }
-
 
     if public:
         if bucket not in known_keys:
@@ -54,8 +51,13 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
                     "duplicate_id": None
                 })
 
-            except ClientError:
-                continue  # Skip if key not accessible
+                if verbose:
+                    print(f"\u2714 Found object: s3://{bucket}/{key} ({size} bytes)")
+
+            except ClientError as e:
+                if verbose:
+                    print(f"\u2718 Skipped: s3://{bucket}/{key} \u2014 {e.response['Error']['Message']}")
+                continue
 
     else:
         s3 = boto3.client("s3")
@@ -86,7 +88,6 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
             if limit and count >= limit:
                 break
 
-    # Assign duplicate group IDs
     for group in hash_map.values():
         if len(group) > 1:
             for i, path in enumerate(group):
