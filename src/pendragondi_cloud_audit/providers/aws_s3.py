@@ -4,6 +4,8 @@ from typing import Optional, List, Dict
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from datetime import datetime, timezone, timedelta
+
 
 def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool = False) -> List[Dict]:
     s3 = boto3.client("s3", config=Config(signature_version="unsigned") if public else None)
