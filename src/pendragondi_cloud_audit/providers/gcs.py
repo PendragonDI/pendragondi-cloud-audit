@@ -1,7 +1,9 @@
+import csv
+import gzip
+import io
 from typing import Optional, List, Dict
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
-import hashlib
 import requests
 from email.utils import parsedate_to_datetime
 
@@ -10,70 +12,66 @@ try:
 except ImportError:
     raise ImportError("GCS support requires google-cloud-storage. Install with: pip install pendragondi-cloud-audit[gcs]")
 
-
 def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool = False, verbose: bool = False) -> List[Dict]:
     now = datetime.now(timezone.utc)
-    stale_cutoff = now.replace(microsecond=0) - timedelta(days=days_stale)
+    stale_cutoff = now - timedelta(days=days_stale)
     files = []
     hash_map = defaultdict(list)
 
-    known_keys = {
-        "gcp-public-data-landsat": [
-            "LC08/01/001/002/LC08010002013197LGN00/LC08010002013197LGN00_MTL.txt"
-        ],
-        "gcp-public-data-sentinel-2": [
-            "tiles/30/U/UH/2023/8/10/0/B02.jp2"
-        ],
-        "gcp-public-data-noaa-goes-16": [
-            "ABI-L1b-RadC/2023/001/00/OR_ABI-L1b-RadC-M6C01_G16_s20230010000394_e20230010011102_c20230010011156.nc"
-        ]
-    }
-
     if public:
-        if bucket not in known_keys:
-            raise RuntimeError(f"Public mode is not supported for bucket '{bucket}' yet.")
+        # Use live manifest for Sentinel-2
+        manifest_url = "https://storage.googleapis.com/gcp-public-data-sentinel-2/index.csv.gz"
+        try:
+            response = requests.get(manifest_url, timeout=30)
+            response.raise_for_status()
+            with gzip.open(io.BytesIO(response.content), mode="rt") as f:
+                reader = csv.DictReader(f)
+                checked = 0
+                for row in reader:
+                    if limit and checked >= limit:
+                        break
 
-        for key in known_keys[bucket]:
-            url = f"https://storage.googleapis.com/{bucket}/{key}"
-            try:
-                resp = requests.head(url, timeout=10)
-                if resp.status_code != 200:
-                    if verbose:
-                        print(f"✘ Skipped: {url} — {resp.status_code} {resp.reason}")
-                    continue
+                    base_url = row.get("BASE_URL")
+                    if not base_url:
+                        continue
 
-                size = int(resp.headers.get("Content-Length", 0))
-                last_modified_raw = resp.headers.get("Last-Modified")
-                if last_modified_raw:
-                    last_modified = parsedate_to_datetime(last_modified_raw)
-                else:
-                    last_modified = now  # fallback to now if not present
+                    target_url = base_url.rstrip("/") + "/manifest.safe"
+                    try:
+                        head = requests.head(target_url, timeout=10)
+                        if head.status_code != 200:
+                            if verbose:
+                                print(f"\u2718 Skipped: {target_url} — {head.status_code} {head.reason}")
+                            continue
 
-                is_stale = last_modified < stale_cutoff
-                path = f"gs://{bucket}/{key}"
-                fingerprint = (size, last_modified)
-                hash_map[fingerprint].append(path)
+                        size = int(head.headers.get("Content-Length", 0))
+                        last_modified_raw = head.headers.get("Last-Modified")
+                        last_modified = parsedate_to_datetime(last_modified_raw) if last_modified_raw else now
+                        is_stale = last_modified < stale_cutoff
 
-                files.append({
-                    "path": path,
-                    "size": size,
-                    "last_modified": last_modified.isoformat(),
-                    "is_stale": is_stale,
-                    "duplicate_id": None
-                })
+                        gs_path = target_url.replace("https://storage.googleapis.com/", "gs://")
+                        fingerprint = (size, last_modified)
+                        hash_map[fingerprint].append(gs_path)
 
-                if verbose:
-                    print(f"✔ Found object: {path} ({size} bytes)")
+                        files.append({
+                            "path": gs_path,
+                            "size": size,
+                            "last_modified": last_modified.isoformat(),
+                            "is_stale": is_stale,
+                            "duplicate_id": None
+                        })
 
-            except Exception as e:
-                if verbose:
-                    print(f"✘ Skipped: {url} — {type(e).__name__}: {e}")
-                continue
+                        if verbose:
+                            print(f"\u2714 Found: {gs_path} ({size} bytes)")
+                        checked += 1
+                    except Exception as e:
+                        if verbose:
+                            print(f"\u2718 Error: {target_url} — {type(e).__name__}: {e}")
+                        continue
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch public Sentinel-2 manifest: {e}")
 
     else:
         client = storage.Client()
-        stale_cutoff = datetime.now(timezone.utc) - timedelta(days=days_stale)
-
         for blob in client.list_blobs(bucket):
             path = f"gs://{bucket}/{blob.name}"
             size = blob.size
