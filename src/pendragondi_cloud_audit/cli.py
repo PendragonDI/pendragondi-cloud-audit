@@ -22,14 +22,16 @@ def scan(
     output: str = typer.Option("report.html", "--output", "-o", help="Output file path"),
     format: str = typer.Option("html", "--format", "-f", help="Output format: html, csv, json"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Max number of objects to scan"),
-    public: bool = typer.Option(False, "--public", help="Use known public keys for restricted buckets")
+    public: bool = typer.Option(False, "--public", help="Use known public keys for restricted buckets"),
+    verbose: bool = typer.Option(False, "--verbose", help="Print scan progress and key results")
 ):
     data = scan_bucket(
         provider_name=provider,
         bucket=bucket,
         days_stale=days_stale,
         limit=limit,
-        public=public
+        public=public,
+        verbose=verbose
     )
 
     if format == "json":
