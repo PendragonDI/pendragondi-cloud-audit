@@ -7,7 +7,8 @@ def scan_bucket(
     bucket: str,
     days_stale: int,
     limit: Optional[int] = None,
-    public: bool = False
+    public: bool = False,
+    verbose: bool = False
 ) -> List[Dict]:
     try:
         provider = get_provider(provider_name)
@@ -22,8 +23,13 @@ def scan_bucket(
         raise
 
     try:
-        return provider.scan(bucket=bucket, days_stale=days_stale, limit=limit, public=public)
-
+        return provider.scan(
+            bucket=bucket,
+            days_stale=days_stale,
+            limit=limit,
+            public=public,
+            verbose=verbose
+        )
     except PermissionError:
         raise RuntimeError(f"Permission denied accessing {bucket}. Check credentials and bucket permissions.")
     except FileNotFoundError:
