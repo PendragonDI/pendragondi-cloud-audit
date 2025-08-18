@@ -5,6 +5,9 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from botocore import UNSIGNED
+import requests
+from email.utils import parsedate_to_datetime
+
 
 def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool = False, verbose: bool = False) -> List[Dict]:
     now = datetime.now(timezone.utc)
@@ -31,20 +34,29 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
         if bucket not in known_keys:
             raise RuntimeError(f"Public mode is not supported for bucket '{bucket}' yet.")
 
-        s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
-
         for key in known_keys[bucket]:
+            url = f"https://data.commoncrawl.org/{key}"
             try:
-                obj = s3.head_object(Bucket=bucket, Key=key)
-                size = obj["ContentLength"]
-                last_modified = obj["LastModified"]
-                is_stale = last_modified < stale_cutoff
+                resp = requests.head(url, timeout=10)
+                if resp.status_code != 200:
+                    if verbose:
+                        print(f"✘ Skipped: {url} — {resp.status_code} {resp.reason}")
+                    continue
 
+                size = int(resp.headers.get("Content-Length", 0))
+                last_modified_raw = resp.headers.get("Last-Modified")
+                if last_modified_raw:
+                    last_modified = parsedate_to_datetime(last_modified_raw)
+                else:
+                    last_modified = now  # fallback to current
+
+                is_stale = last_modified < stale_cutoff
+                path = f"s3://{bucket}/{key}"
                 fingerprint = (size, last_modified)
-                hash_map[fingerprint].append(f"s3://{bucket}/{key}")
+                hash_map[fingerprint].append(path)
 
                 files.append({
-                    "path": f"s3://{bucket}/{key}",
+                    "path": path,
                     "size": size,
                     "last_modified": last_modified,
                     "is_stale": is_stale,
@@ -52,11 +64,11 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
                 })
 
                 if verbose:
-                    print(f"\u2714 Found object: s3://{bucket}/{key} ({size} bytes)")
+                    print(f"✔ Found object: {path} ({size} bytes)")
 
-            except ClientError as e:
+            except Exception as e:
                 if verbose:
-                    print(f"\u2718 Skipped: s3://{bucket}/{key} \u2014 {e.response['Error']['Message']}")
+                    print(f"✘ Skipped: {url} — {type(e).__name__}: {e}")
                 continue
 
     else:
