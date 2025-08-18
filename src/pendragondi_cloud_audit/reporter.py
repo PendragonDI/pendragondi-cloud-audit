@@ -1,76 +1,65 @@
-import csv
-from typing import List, Dict
-from datetime import datetime
 import html
+import csv
+from pathlib import Path
+from typing import List, Dict
 
-def save_report(metadata: List[Dict], output_path: str):
-    if output_path.endswith(".html"):
-        save_html_report(metadata, output_path)
-    else:
-        save_csv_report(metadata, output_path)
-
-def save_csv_report(metadata: List[Dict], output_path: str):
-    if not metadata:
-        with open(output_path, "w", newline="", encoding="utf-8") as f:
-            f.write("path,size,last_modified,status\n")
-        return
-    with open(output_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(metadata[0].keys()))
-        writer.writeheader()
-        writer.writerows(metadata)
+def row_color(status: str) -> str:
+    if "duplicate" in status:
+        return "#fff3cd"
+    elif "stale" in status:
+        return "#f8d7da"
+    return ""
 
 def save_html_report(metadata: List[Dict], output_path: str):
     if not metadata:
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("<html><body><p>No objects found.</p></body></html>")
-        return
+        metadata = [{"message": "No objects found or bucket empty"}]
 
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    headers = list(metadata[0].keys())
-    status_colors = {
-        "stale": "#fff3cd",
-        "duplicate": "#f8d7da",
-        "active": "#d4edda"
-    }
-    def row_color(status: str) -> str:
-        for key, color in status_colors.items():
-            if key in status:
-                return color
-        return "#ffffff"
+    headers = metadata[0].keys()
+    rows = ""
+    for row in metadata:
+        status = str(row.get("status", ""))
+        color = row_color(status)
+        cells = "".join(f"<td>{html.escape(str(row.get(h, '')))}</td>" for h in headers)
+        rows += f'<tr style="background-color:{color}">{cells}</tr>'
 
     total = len(metadata)
-    stale = sum("stale" in str(r.get("status","")) for r in metadata)
-    dups  = sum("duplicate" in str(r.get("status","")) for r in metadata)
+    stale = sum(1 for r in metadata if "stale" in str(r.get("status", "")))
+    dups = sum(1 for r in metadata if "duplicate" in str(r.get("status", "")))
 
-    rows = "".join(
-        "<tr style='background:%s'>%s</tr>" % (
-            row_color(str(row.get("status",""))),
-            "".join("<td>%s</td>" % html.escape(str(row.get(h, ""))) for h in headers)
-        ) for row in metadata
-    )
+    table = "<html><head><meta charset='utf-8'><title>Cloud Audit Report</title><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ccc; padding: 8px; text-align: left; } th { background-color: #f2f2f2; }</style></head><body>"
+    table += f"<h2>Cloud Audit Report</h2><p>Total Files: {total} &bull; Stale: {stale} &bull; Duplicates: {dups}</p><table>"
+    table += "<tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in headers) + "</tr>"
+    table += rows + "</table></body></html>"
 
-    html_output = f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>PendragonDI Cloud Audit Report</title>
-  <style>
-    body {{ font-family: sans-serif; }}
-    table {{ border-collapse: collapse; width: 100%; }}
-    th, td {{ border: 1px solid #bbb; padding: 8px; text-align: left; }}
-    th {{ background: #222; color: #fff; }}
-    caption {{ caption-side: top; font-weight: bold; font-size: 1.2em; margin-bottom: 12px; }}
-  </style>
-</head>
-<body>
-  <p>Total Files: {total} • Stale: {stale} • Duplicates: {dups}</p>
-  <table>
-    <caption>PendragonDI Cloud Audit Report<br>{now}</caption>
-    <thead><tr>{''.join(f'<th>{h}</th>' for h in headers)}</tr></thead>
-    <tbody>{rows}</tbody>
-  </table>
-</body>
-</html>"""
+    Path(output_path).write_text(table, encoding="utf-8")
 
+def save_csv_report(metadata: List[Dict], output_path: str):
+    if not metadata:
+        metadata = [{"message": "No objects found or bucket empty"}]
+
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=metadata[0].keys())
+        writer.writeheader()
+        writer.writerows(metadata)
+
+def save_report(metadata: List[Dict], output_path: str):
+    ext = Path(output_path).suffix.lower()
+    if ext == ".csv":
+        save_csv_report(metadata, output_path)
+    elif ext == ".html":
+        save_html_report(metadata, output_path)
+    elif ext == ".json":
+        export_json(metadata, output_path)
+    else:
+        raise ValueError(f"Unsupported file extension: {ext}")
+
+def export_html(metadata, output_path):
+    save_html_report(metadata, output_path)
+
+def export_csv(metadata, output_path):
+    save_csv_report(metadata, output_path)
+
+def export_json(metadata, output_path):
+    import json
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write(html_output)
+        json.dump(metadata, f, indent=2)
