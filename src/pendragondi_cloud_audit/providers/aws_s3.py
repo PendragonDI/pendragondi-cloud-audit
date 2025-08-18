@@ -16,8 +16,9 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
     # Known object keys for public fallback scan mode
     known_keys = {
         "commoncrawl": [
-            "crawl-data/CC-MAIN-2023-14/robotstxt.arc.gz",
-            "crawl-data/CC-MAIN-2023-14/segments/1680535039241.3/warc/CC-MAIN-20230403061739-20230403091739-00000.warc.gz"
+            "crawl-data/CC-MAIN-2024-10/index.html",
+            "crawl-data/CC-MAIN-2024-10/segment.paths.gz",
+            "crawl-data/CC-MAIN-2024-10/warc.paths.gz"
         ],
         "nyc-tlc": [
             "trip_data_green_2023-01.csv",
@@ -27,6 +28,7 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
             "c1/L8/001/002/LC08_L1TP_001002_20200101_20200101_01_RT/LC08_L1TP_001002_20200101_20200101_01_RT_MTL.txt"
         ]
     }
+
 
     if public:
         if bucket not in known_keys:
