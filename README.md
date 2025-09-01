@@ -27,9 +27,9 @@ PendragonDI Cloud Audit gives you **a fast, metadata-only snapshot** of wasteful
 ## ✅ Features
 
 - 🔍 Identifies stale files based on last-modified timestamp
+- 🐘 Flags oversized files based on a size threshold you define
 - 🪞 Detects potential duplicates using file size, name, and timestamp
 - 🧾 Outputs clean, readable HTML or CSV reports
-- 💡 Estimates storage cost impact
 - 🧪 Supports limit-based sampling for fast iteration
 - 🔐 Operates with your credentials — no external access required
 - 🔒 Never reads, moves, or deletes content
@@ -69,12 +69,20 @@ You can also limit the number of objects scanned:
 pendragondi-cloud-audit scan gcs my-bucket --days-stale 60 --limit 10000 --output audit.csv
 ```
 
+### 2. Find large files:
+
+You can also flag files over a certain size. The following command flags all files over 100MB as oversized:
+
+```bash
+pendragondi-cloud-audit scan s3 my-important-bucket --oversized-mb 100
+```
+
 ---
 
 ## 📄 Example Report
 
 ```html
-Total Files: 3200 • Stale: 1800 • Duplicates: 400
+Total Files: 3200 • Stale: 1800 • Duplicates: 400 • Oversized: 50
 ```
 
 Results can be opened in any browser or spreadsheet tool.

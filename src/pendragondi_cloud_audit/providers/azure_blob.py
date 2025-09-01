@@ -30,8 +30,8 @@ def _container_name_from_url(container_url: str) -> str:
 def scan(
     container: str,
     days_stale: int,
+    oversized_mb: int = 0,
     limit: Optional[int] = None,
-    public: bool = False,   # kept for parity with other providers
     verbose: bool = False
 ) -> List[Dict]:
     """
@@ -64,6 +64,7 @@ def scan(
                 lm = lm.replace(tzinfo=timezone.utc)
 
             is_stale = (lm or now) < cutoff
+            is_oversized = (oversized_mb > 0) and (size > oversized_mb * 1024 * 1024)
 
             # Consistent display path across providers
             path = f"az://{container_name}/{blob.name}"
@@ -77,6 +78,7 @@ def scan(
                 "size": size,
                 "last_modified": lm,
                 "is_stale": is_stale,
+                "is_oversized": is_oversized,
                 "duplicate_id": None,
             })
 
@@ -100,14 +102,14 @@ def scan(
     except Exception:
         raise
 
-    # Mark duplicates (same style as AWS/GCS)
-    for paths in groups.values():
-        if len(paths) > 1:
-            dup_id = f"group-{abs(hash(tuple(sorted(paths)))) % 10000}"
-            for p in paths:
-                for f in files:
-                    if f["path"] == p:
-                        f["duplicate_id"] = dup_id
+    # More efficient and correct duplicate marking
+    file_map = {file["path"]: file for file in files}
+    for fingerprint, group in groups.items():
+        if len(group) > 1:
+            # All files in this group are duplicates. Generate one ID for them.
+            dupe_id = f"dupe-group-{hash(fingerprint)}"
+            for path in group:
+                file_map[path]["duplicate_id"] = dupe_id
 
     if verbose:
         stale_ct = sum(f["is_stale"] for f in files)

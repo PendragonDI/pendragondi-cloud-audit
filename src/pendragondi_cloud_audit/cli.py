@@ -19,18 +19,18 @@ def scan(
     provider: str = typer.Argument(..., help="Provider name: aws, gcs, or azure"),
     bucket: str = typer.Argument(..., help="Bucket or container name"),
     days_stale: int = typer.Option(90, "--days-stale", help="How many days before file is considered stale"),
+    oversized_mb: int = typer.Option(0, "--oversized-mb", help="Size in MB to consider a file oversized (0 to disable)"),
     output: str = typer.Option("report.html", "--output", "-o", help="Output file path"),
     format: str = typer.Option("html", "--format", "-f", help="Output format: html, csv, json"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Max number of objects to scan"),
-    public: bool = typer.Option(False, "--public", help="Use known public keys for restricted buckets"),
     verbose: bool = typer.Option(False, "--verbose", help="Print scan progress and key results")
 ):
     data = scan_bucket(
         provider_name=provider,
         bucket=bucket,
         days_stale=days_stale,
+        oversized_mb=oversized_mb,
         limit=limit,
-        public=public,
         verbose=verbose
     )
 

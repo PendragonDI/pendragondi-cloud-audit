@@ -6,8 +6,8 @@ def scan_bucket(
     provider_name: str,
     bucket: str,
     days_stale: int,
+    oversized_mb: int = 0,
     limit: Optional[int] = None,
-    public: bool = False,
     verbose: bool = False
 ) -> List[Dict]:
     try:
@@ -26,8 +26,8 @@ def scan_bucket(
         return provider.scan(
             bucket=bucket,
             days_stale=days_stale,
+            oversized_mb=oversized_mb,
             limit=limit,
-            public=public,
             verbose=verbose
         )
     except PermissionError:
@@ -38,15 +38,10 @@ def scan_bucket(
         raise RuntimeError(f"Network connection error while scanning '{bucket}'. Check connectivity and retry.")
     except botocore.exceptions.ClientError as e:
         code = e.response.get("Error", {}).get("Code", "")
-        if code == "AccessDenied" and public:
-            raise RuntimeError(
-                f"Bucket '{bucket}' is public but does not allow listing. "
-                f"Using --public mode: scanning known keys only."
-            )
-        elif code == "AccessDenied":
+        if code == "AccessDenied":
             raise RuntimeError(
                 f"Access denied scanning '{bucket}'. This bucket may be public but does not allow object listing. "
-                f"Use --public mode to scan known keys."
+                f"Consider checking permissions."
             )
         raise
     except Exception as e:
