@@ -9,79 +9,23 @@ import requests
 from email.utils import parsedate_to_datetime
 
 
-def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool = False, verbose: bool = False) -> List[Dict]:
+def scan(bucket: str, days_stale: int, oversized_mb: int = 0, limit: Optional[int] = None, verbose: bool = False) -> List[Dict]:
     now = datetime.now(timezone.utc)
     stale_cutoff = now.replace(microsecond=0) - timedelta(days=days_stale)
     files = []
     hash_map = defaultdict(list)
 
-    known_keys = {
-        "commoncrawl": [
-            "crawl-data/CC-MAIN-2024-10/index.html",
-            "crawl-data/CC-MAIN-2024-10/segment.paths.gz",
-            "crawl-data/CC-MAIN-2024-10/warc.paths.gz"
-        ],
-        "nyc-tlc": [
-            "trip_data_green_2023-01.csv",
-            "trip_data_yellow_2023-01.csv"
-        ],
-        "landsat-pds": [
-            "c1/L8/001/002/LC08_L1TP_001002_20200101_20200101_01_RT/LC08_L1TP_001002_20200101_20200101_01_RT_MTL.txt"
-        ]
-    }
+    s3 = boto3.client("s3")
+    paginator = s3.get_paginator("list_objects_v2")
+    count = 0
 
-    if public:
-        if bucket not in known_keys:
-            raise RuntimeError(f"Public mode is not supported for bucket '{bucket}' yet.")
-
-        for key in known_keys[bucket]:
-            url = f"https://data.commoncrawl.org/{key}"
-            try:
-                resp = requests.head(url, timeout=10)
-                if resp.status_code != 200:
-                    if verbose:
-                        print(f"✘ Skipped: {url} — {resp.status_code} {resp.reason}")
-                    continue
-
-                size = int(resp.headers.get("Content-Length", 0))
-                last_modified_raw = resp.headers.get("Last-Modified")
-                if last_modified_raw:
-                    last_modified = parsedate_to_datetime(last_modified_raw)
-                else:
-                    last_modified = now  # fallback to current
-
-                is_stale = last_modified < stale_cutoff
-                path = f"s3://{bucket}/{key}"
-                fingerprint = (size, last_modified)
-                hash_map[fingerprint].append(path)
-
-                files.append({
-                    "path": path,
-                    "size": size,
-                    "last_modified": last_modified,
-                    "is_stale": is_stale,
-                    "duplicate_id": None
-                })
-
-                if verbose:
-                    print(f"✔ Found object: {path} ({size} bytes)")
-
-            except Exception as e:
-                if verbose:
-                    print(f"✘ Skipped: {url} — {type(e).__name__}: {e}")
-                continue
-
-    else:
-        s3 = boto3.client("s3")
-        paginator = s3.get_paginator("list_objects_v2")
-        count = 0
-
-        for page in paginator.paginate(Bucket=bucket):
+    for page in paginator.paginate(Bucket=bucket):
             for obj in page.get("Contents", []):
                 path = f"s3://{bucket}/{obj['Key']}"
                 size = obj['Size']
                 last_modified = obj['LastModified']
                 is_stale = last_modified < stale_cutoff
+                is_oversized = (oversized_mb > 0) and (size > oversized_mb * 1024 * 1024)
 
                 fingerprint = (size, last_modified)
                 hash_map[fingerprint].append(path)
@@ -91,6 +35,7 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
                     "size": size,
                     "last_modified": last_modified,
                     "is_stale": is_stale,
+                    "is_oversized": is_oversized,
                     "duplicate_id": None
                 })
 
@@ -100,11 +45,13 @@ def scan(bucket: str, days_stale: int, limit: Optional[int] = None, public: bool
             if limit and count >= limit:
                 break
 
-    for group in hash_map.values():
+    # More efficient and correct duplicate marking
+    file_map = {file["path"]: file for file in files}
+    for fingerprint, group in hash_map.items():
         if len(group) > 1:
-            for i, path in enumerate(group):
-                for file in files:
-                    if file["path"] == path:
-                        file["duplicate_id"] = f"group-{hash(path) % 10000}"
+            # All files in this group are duplicates. Generate one ID for them.
+            dupe_id = f"dupe-group-{hash(fingerprint)}"
+            for path in group:
+                file_map[path]["duplicate_id"] = dupe_id
 
     return files

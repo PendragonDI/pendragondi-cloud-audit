@@ -8,13 +8,13 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 # Preferred column ordering for readability; anything else is appended afterward.
-PREFERRED_ORDER = ["path", "status", "size", "last_modified", "duplicate_id"]
+PREFERRED_ORDER = ["path", "status", "size", "last_modified", "is_oversized", "duplicate_id"]
 
 
 def _ensure_status(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Backfill a 'status' string for reporting if providers only emit is_stale/duplicate_id.
-    Priority: duplicate > stale > active
+    Priority: duplicate > stale > oversized > active
     """
     for r in records:
         if "status" in r and r["status"]:
@@ -23,6 +23,8 @@ def _ensure_status(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             r["status"] = "duplicate"
         elif r.get("is_stale"):
             r["status"] = "stale"
+        elif r.get("is_oversized"):
+            r["status"] = "oversized"
         else:
             r["status"] = "active"
     return records
@@ -36,11 +38,13 @@ def _format_cell(value: Any) -> str:
 
 
 def _row_color(status: str) -> str:
-    # duplicate -> soft yellow, stale -> soft red/pink
+    # duplicate -> soft yellow, stale -> soft red/pink, oversized -> soft blue
     if "duplicate" in status:
         return "#fff3cd"
     elif "stale" in status:
         return "#f8d7da"
+    elif "oversized" in status:
+        return "#d1ecf1"
     return ""
 
 
@@ -69,6 +73,7 @@ def save_html_report(metadata: List[Dict[str, Any]], output_path: str) -> None:
     total = len(metadata)
     stale = sum(1 for r in metadata if str(r.get("status", "")).lower() == "stale")
     dups = sum(1 for r in metadata if str(r.get("status", "")).lower() == "duplicate")
+    oversized = sum(1 for r in metadata if str(r.get("status", "")).lower() == "oversized")
 
     # Build rows
     rows_html = []
@@ -91,7 +96,7 @@ def save_html_report(metadata: List[Dict[str, Any]], output_path: str) -> None:
         "body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }",
         "</style></head><body>",
         "<h2>Cloud Audit Report</h2>",
-        f"<p>Total Files: {total} &bull; Stale: {stale} &bull; Duplicates: {dups}</p>",
+        f"<p>Total Files: {total} &bull; Stale: {stale} &bull; Duplicates: {dups} &bull; Oversized: {oversized}</p>",
         "<table>",
         "<tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in headers) + "</tr>",
         *rows_html,

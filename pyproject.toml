@@ -10,13 +10,14 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [{name = "jinpendragon", email = "pendragondi@pendragondi.dev"}]
-dependencies = ["typer"]
+dependencies = ["typer", "requests"]
 
 [project.optional-dependencies]
 aws = ["boto3"]
 gcs = ["google-cloud-storage"]
 azure = ["azure-storage-blob"]
 all = ["boto3", "google-cloud-storage", "azure-storage-blob"]
+dev = ["pytest"]
 
 [project.scripts]
 pendragondi-cloud-audit = "pendragondi_cloud_audit.cli:app"
